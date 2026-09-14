@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# VS Code
+.vscode/
+
+# Rider
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Chua connection string that (password DB) - khong commit
+appsettings.json
