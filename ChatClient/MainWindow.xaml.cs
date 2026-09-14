@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net.Sockets;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using ChatProtocol;
 
@@ -80,6 +81,8 @@ public partial class MainWindow : Window
         {
             case MessageType.LOGIN_OK:
                 Title = $"Chat ({message.Sender})";
+                MyUsernameText.Text = message.Sender;
+                MyAvatarText.Text = message.Sender[0].ToString().ToUpper();
                 break;
 
             case MessageType.ONLINE_LIST:
@@ -106,5 +109,13 @@ public partial class MainWindow : Window
         _cts?.Cancel();
         _stream?.Close();
         _tcpClient?.Close();
+    }
+
+    private void UserButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is string username)
+        {
+            Title = $"Chat — selected: {username}";
+        }
     }
 }
