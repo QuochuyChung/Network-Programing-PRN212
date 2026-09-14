@@ -17,6 +17,18 @@ public class ChatDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>()
+            .HasIndex(user => user.Username)
+            .IsUnique();
+
+        modelBuilder.Entity<User>()
+            .Property(user => user.Username)
+            .HasMaxLength(50);
+
+        modelBuilder.Entity<Group>()
+            .Property(group => group.Name)
+            .HasMaxLength(100);
+
         modelBuilder.Entity<GroupMember>()
             .HasKey(gm => new { gm.GroupId, gm.UserId });
 

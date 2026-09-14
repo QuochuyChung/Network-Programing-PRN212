@@ -168,6 +168,7 @@ cd SourceCode
 cp ChatServer.Data/appsettings.example.json ChatServer.Data/appsettings.json
 cp ChatServer/appsettings.example.json ChatServer/appsettings.json
 # rồi mở 2 file appsettings.json vừa tạo, sửa Password=... thành password thật
+# Có thể dùng biến môi trường CHAT_DB_CONNECTION_STRING thay cho file appsettings.json.
 
 dotnet build
 

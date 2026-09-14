@@ -10,6 +10,12 @@ public static class DbConfig
 {
     public static string GetConnectionString()
     {
+        var environmentConnectionString = Environment.GetEnvironmentVariable("CHAT_DB_CONNECTION_STRING");
+        if (!string.IsNullOrWhiteSpace(environmentConnectionString))
+        {
+            return environmentConnectionString;
+        }
+
         var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         var json = File.ReadAllText(path);
         using var doc = JsonDocument.Parse(json);
