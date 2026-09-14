@@ -38,7 +38,6 @@ public class ClientHandler
                 if (message == null) break;
 
                 if (_handlers.TryGetValue(message.Type, out var handler))
-                // lấy value là handler, handler là hàm là action
                     handler(message);
                 else
                     Console.WriteLine($"Chua co handler cho {message.Type}");
@@ -47,7 +46,6 @@ public class ClientHandler
         catch (IOException)
         {
         }
-        // chat xong hay là xong request thì disconnect lại
         finally
         {
             Disconnect();
@@ -56,12 +54,66 @@ public class ClientHandler
 
     public void Send(Message message) => FrameWriter.WriteMessage(_stream, message);
 
+    public void SendOnlineList()
+    {
+        List<string> onlineUsernames;
+        lock (Lock)
+        {
+            onlineUsernames = OnlineUsers.Keys.Where(u => u != Username).ToList();
+        }
+
+        Send(new Message
+        {
+            Type = MessageType.ONLINE_LIST,
+            Sender = "server",
+            Users = onlineUsernames
+        });
+    }
+
+    public void BroadcastOnline()
+    {
+        BroadcastExcept(new Message
+        {
+            Type = MessageType.USER_ONLINE,
+            Sender = "server",
+            Content = Username
+        });
+    }
+
+    public void BroadcastOffline()
+    {
+        BroadcastExcept(new Message
+        {
+            Type = MessageType.USER_OFFLINE,
+            Sender = "server",
+            Content = Username
+        });
+    }
+
+    private void BroadcastExcept(Message message)
+    {
+        List<ClientHandler> targets;
+        lock (Lock)
+        {
+            targets = OnlineUsers.Values.Where(h => h.Username != Username).ToList();
+        }
+
+        foreach (var handler in targets)
+        {
+            try { handler.Send(message); }
+            catch { }
+        }
+    }
+
     private void Disconnect()
     {
         lock (Lock)
         {
             if (Username != "") OnlineUsers.Remove(Username);
         }
+
+        if (Username != "") BroadcastOffline();
+
         _client.Close();
         Console.WriteLine($"{Username} da ngat ket noi.");
     }

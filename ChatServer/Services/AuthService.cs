@@ -21,6 +21,8 @@ public class AuthService
         }
 
         _client.Send(new Message { Type = MessageType.LOGIN_OK, Sender = "server" });
+        _client.SendOnlineList();
+        _client.BroadcastOnline();
         Console.WriteLine($"{_client.Username} da online.");
     }
 }
