@@ -20,9 +20,7 @@ public class AuthService
             ClientHandler.OnlineUsers[_client.Username] = _client;
         }
 
-        _client.Send(new Message { Type = MessageType.LOGIN_OK, Sender = _client.Username });
-        _client.SendOnlineList();
-        _client.BroadcastOnline();
+        _client.Send(new Message { Type = MessageType.LOGIN_OK, Sender = "server" });
         Console.WriteLine($"{_client.Username} da online.");
     }
 }
