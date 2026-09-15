@@ -48,8 +48,8 @@ public partial class LoginWindow : Window
         HideError();
 
         var (success, message) = await ChatClientService.Instance.ConnectAndLoginAsync(
-            _config.Host, 
-            _config.Port, 
+            _config.Host,
+            _config.Port,
             username);
 
         SetLoading(false);
