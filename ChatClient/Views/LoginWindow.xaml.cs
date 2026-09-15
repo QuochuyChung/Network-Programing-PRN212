@@ -8,11 +8,20 @@ public partial class LoginWindow : Window
 {
     private readonly ClientConfigService _config;
 
-    public LoginWindow()
+    public LoginWindow() : this(null)
+    {
+    }
+
+    public LoginWindow(string? initialError)
     {
         InitializeComponent();
         _config = ClientConfigService.Load();
         TxtUsername.Focus();
+
+        if (!string.IsNullOrWhiteSpace(initialError))
+        {
+            ShowError(initialError);
+        }
     }
 
     private void OnUsernameTextChanged(object sender, TextChangedEventArgs e)

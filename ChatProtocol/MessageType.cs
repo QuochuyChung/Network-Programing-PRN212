@@ -17,5 +17,6 @@ public enum MessageType
     ONLINE_LIST,
     USER_ONLINE,
     USER_OFFLINE,
-    ERROR
+    ERROR,
+    FORCE_LOGOUT
 }

@@ -28,23 +28,7 @@ public class AuthService
             return;
         }
 
-        // 1. Check if the username is already online
-        lock (ClientHandler.Lock)
-        {
-            if (ClientHandler.OnlineUsers.ContainsKey(username))
-            {
-                Console.WriteLine($"[LOGIN REJECTED] Username '{username}' is already online.");
-                _client.Send(new Message
-                {
-                    Type = MessageType.ERROR,
-                    Sender = "server",
-                    Content = $"Username '{username}' is already online on another device."
-                });
-                return;
-            }
-        }
-
-        // 2. Check or create the user in the database
+        // 1. Check or create the user in the database
         try
         {
             using var db = new ChatDbContext();
@@ -65,9 +49,21 @@ public class AuthService
 
             _client.Username = user.Username;
 
+            // 2. Check if user already has an active session on another device; if so, kick it
+            ClientHandler? oldSession = null;
             lock (ClientHandler.Lock)
             {
+                if (ClientHandler.OnlineUsers.TryGetValue(_client.Username, out oldSession) && oldSession != _client)
+                {
+                    ClientHandler.OnlineUsers.Remove(_client.Username);
+                }
                 ClientHandler.OnlineUsers[_client.Username] = _client;
+            }
+
+            if (oldSession != null && oldSession != _client)
+            {
+                Console.WriteLine($"[SESSION REPLACED] User '{_client.Username}' logged in from another device. Kicking previous session.");
+                oldSession.Kick("Your account has been logged in from another device.");
             }
 
             _client.Send(new Message

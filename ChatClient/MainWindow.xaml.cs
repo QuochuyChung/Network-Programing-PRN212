@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using ChatClient.Services;
+using ChatClient.Views;
 using ChatProtocol;
 
 namespace ChatClient;
@@ -14,6 +16,7 @@ public partial class MainWindow : Window
     private NetworkStream? _stream;
     private CancellationTokenSource? _cts;
     private readonly ObservableCollection<string> _onlineUsers = [];
+    private bool _isForceLoggedOut = false;
 
     public MainWindow()
     {
@@ -21,6 +24,28 @@ public partial class MainWindow : Window
         OnlineUsersList.ItemsSource = _onlineUsers;
 
         Loaded += MainWindow_Loaded;
+        ChatClientService.Instance.OnForceLogout += HandleForceLogout;
+    }
+
+    private void HandleForceLogout(string reason)
+    {
+        _isForceLoggedOut = true;
+        Dispatcher.Invoke(() =>
+        {
+            var loginWindow = new LoginWindow(reason);
+            loginWindow.Show();
+            this.Close();
+        });
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        ChatClientService.Instance.OnForceLogout -= HandleForceLogout;
+        if (!_isForceLoggedOut)
+        {
+            ChatClientService.Instance.Disconnect();
+        }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
