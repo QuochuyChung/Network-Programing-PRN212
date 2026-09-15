@@ -89,6 +89,35 @@ public class ChatClientService
         }
     }
 
+    public async Task<bool> SendMessageAsync(Guid groupId, string content)
+    {
+        if (_stream == null || CurrentUser == null)
+        {
+            return false; // chua connect/chua login thi khong gui duoc
+        }
+
+        var chatMessage = new Message
+        {
+            Type = MessageType.MESSAGE,
+            GroupId = groupId,
+            Sender = CurrentUser,
+            Content = content,
+            Timestamp = DateTime.UtcNow
+        };
+
+        try
+        {
+            await Task.Run(() => FrameWriter.WriteMessage(_stream, chatMessage));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Send message error: {ex.Message}");
+            Disconnect();
+            return false;
+        }
+    }
+
     public void Disconnect()
     {
         try
