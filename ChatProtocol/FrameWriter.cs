@@ -29,5 +29,6 @@ public static class FrameWriter
         stream.Write(lengthPrefix, 0, lengthPrefix.Length);
         // start = 0 -> end =  length
         stream.Write(payload, 0, payload.Length);
+        stream.Flush();
     }
 }
