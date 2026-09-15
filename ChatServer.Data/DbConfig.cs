@@ -10,7 +10,20 @@ public static class DbConfig
 {
     public static string GetConnectionString()
     {
+        var environmentValue = Environment.GetEnvironmentVariable("CHATAPP_CONNECTION_STRING");
+        if (!string.IsNullOrWhiteSpace(environmentValue))
+        {
+            return environmentValue;
+        }
+
         var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        if (!File.Exists(path))
+        {
+            throw new InvalidOperationException(
+                "Không tìm thấy appsettings.json. Hãy copy appsettings.example.json thành " +
+                "appsettings.json hoặc đặt biến môi trường CHATAPP_CONNECTION_STRING.");
+        }
+
         var json = File.ReadAllText(path);
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement

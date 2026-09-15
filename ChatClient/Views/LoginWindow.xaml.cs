@@ -47,10 +47,9 @@ public partial class LoginWindow : Window
 
         if (success)
         {
-            var nextWindow = new MainWindow();
-            nextWindow.Title = $"ChatApp • Logged in as: @{ChatClientService.Instance.CurrentUser}";
+            var nextWindow = new GroupListWindow(ChatClientService.Instance);
             nextWindow.Show();
-            this.Close();
+            Close();
         }
         else
         {

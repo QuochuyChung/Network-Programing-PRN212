@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
 
+namespace ChatProtocol;
+
 public static class FrameWriter
 {
     /// <summary>
@@ -29,5 +31,27 @@ public static class FrameWriter
         stream.Write(lengthPrefix, 0, lengthPrefix.Length);
         // start = 0 -> end =  length
         stream.Write(payload, 0, payload.Length);
+    }
+
+    public static async Task WriteAsync(
+        Stream stream,
+        Message message,
+        SemaphoreSlim writeLock,
+        CancellationToken cancellationToken = default)
+    {
+        byte[] payload = JsonSerializer.SerializeToUtf8Bytes(message);
+        byte[] lengthPrefix = BitConverter.GetBytes(payload.Length);
+
+        await writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await stream.WriteAsync(lengthPrefix, cancellationToken);
+            await stream.WriteAsync(payload, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            writeLock.Release();
+        }
     }
 }

@@ -12,7 +12,7 @@ Chat app nhiều nhóm (group chat), dựng bằng **TCP Socket thuần** (`Syst
 ## Cấu trúc project
 
 ```
-ChatApp.sln
+ChatApp.slnx
 ├── ChatProtocol/      Thư viện dùng chung (Server + Client đều tham chiếu)
 ├── ChatServer.Data/   Tầng persistence (EF Core + PostgreSQL)
 ├── ChatServer/        Console App — server trung tâm
@@ -163,13 +163,14 @@ CREATE TABLE "Messages" (
 git clone <repo-url>
 cd SourceCode
 
-# appsettings.json chứa password DB nên bị .gitignore, không có sẵn sau khi clone
-# -> copy từ file mẫu rồi tự điền connection string của bạn vào (2 chỗ)
-cp ChatServer.Data/appsettings.example.json ChatServer.Data/appsettings.json
+# appsettings.json chứa password DB nên bị .gitignore, không có sẵn sau khi clone.
+# Server cần một file cấu hình DB; project Data cần file thứ hai khi chạy dotnet ef.
 cp ChatServer/appsettings.example.json ChatServer/appsettings.json
-# rồi mở 2 file appsettings.json vừa tạo, sửa Password=... thành password thật
+cp ChatServer.Data/appsettings.example.json ChatServer.Data/appsettings.json
+# Mở hai file vừa tạo và thay connection string bằng thông tin PostgreSQL thật.
+# Client mặc định dùng 127.0.0.1:5000; chỉ cần appsettings.json riêng nếu muốn đổi.
 
-dotnet build
+dotnet build ChatApp.slnx
 
 cd ChatServer.Data
 dotnet ef database update
@@ -183,3 +184,7 @@ dotnet run --project ChatClient
 ```
 
 > **Lưu ý:** `appsettings.json` (chứa password DB thật) không được commit lên git. Mỗi người tự copy từ `appsettings.example.json` rồi điền password riêng của mình — xem `.gitignore`.
+
+Nếu không muốn lưu connection string trong file, có thể đặt biến môi trường
+`CHATAPP_CONNECTION_STRING` trước khi chạy server hoặc lệnh EF. Solution vẫn build
+được khi chưa có `appsettings.json`, nhưng đăng nhập cần kết nối PostgreSQL hợp lệ.

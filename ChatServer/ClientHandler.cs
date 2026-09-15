@@ -1,68 +1,142 @@
+using System.IO;
 using System.Net.Sockets;
 using ChatProtocol;
-using ChatServer.Services;
 
-public class ClientHandler
+namespace ChatServer;
+
+public sealed class ClientHandler
 {
     private readonly TcpClient _client;
     private readonly NetworkStream _stream;
-    private readonly Dictionary<MessageType, Action<Message>> _handlers;
+    private readonly GroupManager _groupManager;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly CancellationTokenSource _cancellation = new();
 
-    public static readonly Dictionary<string, ClientHandler> OnlineUsers = new();
-    public static readonly object Lock = new();
-
-    public string Username { get; set; } = "";
-
-    public ClientHandler(TcpClient client)
+    public ClientHandler(TcpClient client, GroupManager groupManager)
     {
         _client = client;
         _stream = client.GetStream();
-
-        var authService = new AuthService(this);
-        var chatService = new ChatService(this);
-
-        _handlers = new Dictionary<MessageType, Action<Message>>
-        {
-            { MessageType.LOGIN, authService.HandleLogin },
-            { MessageType.MESSAGE, chatService.HandleChatMessage }
-        };
+        _groupManager = groupManager;
     }
 
-    public void Run()
+    public string? Username { get; internal set; }
+
+    public async Task RunAsync()
     {
         try
         {
-            while (true)
+            while (!_cancellation.IsCancellationRequested)
             {
-                Message? message = FrameReader.ReadMessage(_stream);
-                if (message == null) break;
+                Message? message = await FrameReader.ReadAsync(_stream, _cancellation.Token);
+                if (message is null)
+                {
+                    break;
+                }
 
-                if (_handlers.TryGetValue(message.Type, out var handler))
-                // lấy value là handler, handler là hàm là action
-                    handler(message);
-                else
-                    Console.WriteLine($"Chua co handler cho {message.Type}");
+                try
+                {
+                    await HandleMessageAsync(message);
+                }
+                catch (Exception exception)
+                {
+                    Console.Error.WriteLine(
+                        $"Lỗi xử lý {message.Type} của {Username ?? "client chưa đăng nhập"}: {exception}");
+                    await SendErrorAsync("Server không thể xử lý yêu cầu. Vui lòng thử lại.");
+                }
             }
         }
-        catch (IOException)
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
         {
         }
-        // chat xong hay là xong request thì disconnect lại
+        catch (Exception exception) when (exception is IOException or SocketException or ObjectDisposedException)
+        {
+            Console.WriteLine($"Client {Username ?? "chưa đăng nhập"} mất kết nối: {exception.Message}");
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"Lỗi xử lý client {Username ?? "chưa đăng nhập"}: {exception}");
+            try
+            {
+                await SendErrorAsync("Server không thể xử lý yêu cầu.");
+            }
+            catch
+            {
+            }
+        }
         finally
         {
-            Disconnect();
+            await DisconnectAsync();
         }
     }
 
-    public void Send(Message message) => FrameWriter.WriteMessage(_stream, message);
+    public Task SendAsync(Message message) =>
+        FrameWriter.WriteAsync(_stream, message, _writeLock, _cancellation.Token);
 
-    private void Disconnect()
+    public Task SendErrorAsync(string content) => SendAsync(new Message
     {
-        lock (Lock)
+        Type = MessageType.ERROR,
+        Sender = "server",
+        Content = content,
+        Timestamp = DateTime.UtcNow
+    });
+
+    private async Task HandleMessageAsync(Message message)
+    {
+        if (message.Type == MessageType.LOGIN)
         {
-            if (Username != "") OnlineUsers.Remove(Username);
+            if (Username is not null)
+            {
+                await SendErrorAsync("Client này đã đăng nhập.");
+                return;
+            }
+
+            await _groupManager.LoginAsync(this, message.Sender);
+            return;
         }
-        _client.Close();
-        Console.WriteLine($"{Username} da ngat ket noi.");
+
+        if (Username is null)
+        {
+            await SendErrorAsync("Bạn cần đăng nhập trước khi thực hiện yêu cầu.");
+            return;
+        }
+
+        switch (message.Type)
+        {
+            case MessageType.GROUP_LIST:
+                await _groupManager.SendGroupListAsync(this);
+                break;
+            case MessageType.CREATE_GROUP:
+                await _groupManager.CreateGroupAsync(this, message.GroupName);
+                break;
+            case MessageType.ADD_MEMBER:
+                await _groupManager.AddMemberAsync(this, message.GroupId, message.TargetUsername);
+                break;
+            case MessageType.OPEN_GROUP:
+                await _groupManager.SendMemberListAsync(this, message.GroupId);
+                break;
+            case MessageType.MESSAGE:
+                await _groupManager.SendChatMessageAsync(this, message);
+                break;
+            default:
+                await SendErrorAsync($"Message type {message.Type} không được client gửi lên server.");
+                break;
+        }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        await _cancellation.CancelAsync();
+        try
+        {
+            await _groupManager.DisconnectAsync(this);
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"Không thể broadcast trạng thái offline: {exception.Message}");
+        }
+        _client.Dispose();
+        _cancellation.Dispose();
+        _writeLock.Dispose();
+        Console.WriteLine($"{Username ?? "Client"} đã ngắt kết nối.");
     }
 }
