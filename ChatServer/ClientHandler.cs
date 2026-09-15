@@ -13,6 +13,9 @@ public class ClientHandler
 
     public string Username { get; set; } = "";
 
+    public event Action? OnDisconnect;
+    public event Action<Message>? OnSend;
+
     public ClientHandler(TcpClient client)
     {
         _client = client;
@@ -20,6 +23,8 @@ public class ClientHandler
 
         var authService = new AuthService(this);
         var chatService = new ChatService(this);
+        var onlineService = new OnlineService(this);
+        var offlineService = new OfflineService(this);
 
         _handlers = new Dictionary<MessageType, Action<Message>>
         {
@@ -52,57 +57,10 @@ public class ClientHandler
         }
     }
 
-    public void Send(Message message) => FrameWriter.WriteMessage(_stream, message);
-
-    public void SendOnlineList()
+    public void Send(Message message)
     {
-        List<string> onlineUsernames;
-        lock (Lock)
-        {
-            onlineUsernames = OnlineUsers.Keys.Where(u => u != Username).ToList();
-        }
-
-        Send(new Message
-        {
-            Type = MessageType.ONLINE_LIST,
-            Sender = "server",
-            Users = onlineUsernames
-        });
-    }
-
-    public void BroadcastOnline()
-    {
-        BroadcastExcept(new Message
-        {
-            Type = MessageType.USER_ONLINE,
-            Sender = "server",
-            Content = Username
-        });
-    }
-
-    public void BroadcastOffline()
-    {
-        BroadcastExcept(new Message
-        {
-            Type = MessageType.USER_OFFLINE,
-            Sender = "server",
-            Content = Username
-        });
-    }
-
-    private void BroadcastExcept(Message message)
-    {
-        List<ClientHandler> targets;
-        lock (Lock)
-        {
-            targets = OnlineUsers.Values.Where(h => h.Username != Username).ToList();
-        }
-
-        foreach (var handler in targets)
-        {
-            try { handler.Send(message); }
-            catch { }
-        }
+        OnSend?.Invoke(message);
+        FrameWriter.WriteMessage(_stream, message);
     }
 
     private void Disconnect()
@@ -112,7 +70,7 @@ public class ClientHandler
             if (Username != "") OnlineUsers.Remove(Username);
         }
 
-        if (Username != "") BroadcastOffline();
+        OnDisconnect?.Invoke();
 
         _client.Close();
         Console.WriteLine($"{Username} da ngat ket noi.");
