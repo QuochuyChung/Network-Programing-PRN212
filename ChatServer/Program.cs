@@ -1,14 +1,17 @@
 using System.Net;
 using System.Net.Sockets;
+using ChatServer;
+using ChatServer.Data;
 
-TcpListener listener = new TcpListener(IPAddress.Any, 5000);
+int port = ServerConfig.GetPort();
+TcpListener listener = new TcpListener(IPAddress.Any, port);
 listener.Start();
-Console.WriteLine("Server dang chay, cho ket noi tren port 5000...");
+Console.WriteLine($"Server is running, listening on port {port}...");
 
 while (true)
 {
     TcpClient client = listener.AcceptTcpClient();
-    Console.WriteLine("Co client moi ket noi.");
+    Console.WriteLine("New client connected.");
 
     var handler = new ClientHandler(client);
     Thread thread = new Thread(handler.Run);
