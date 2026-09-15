@@ -1,0 +1,134 @@
+<Window x:Class="ChatClient.Views.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Join Chat • ChatApp"
+        Height="360" Width="400"
+        WindowStartupLocation="CenterScreen"
+        Background="#121212"
+        Foreground="#F5F5F5"
+        FontFamily="Segoe UI"
+        ResizeMode="CanMinimize">
+
+    <Window.Resources>
+        <!-- Instagram Primary Button Style -->
+        <Style x:Key="InstagramPrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#0095F6"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="22">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1877F2"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#0077D6"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#004C82"/>
+                                <Setter Property="Foreground" Value="#80FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="28,24,28,24">
+        <Grid.RowDefinitions>
+            <!-- Header bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- Content area -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Navigation Bar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,24" VerticalAlignment="Center">
+            <TextBlock Text="&#xE8BD;" 
+                       FontFamily="Segoe MDL2 Assets" 
+                       FontSize="22" 
+                       Foreground="#0095F6" 
+                       VerticalAlignment="Center" 
+                       Margin="0,0,12,0"/>
+            <TextBlock Text="Join ChatApp" 
+                       FontSize="22" 
+                       FontWeight="Bold" 
+                       Foreground="#F5F5F5" 
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Main Form Area -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center">
+
+            <!-- Error Badge -->
+            <Border x:Name="ErrorBadge" 
+                    Background="#261214" 
+                    BorderBrush="#ED4956" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="12,10" 
+                    Margin="0,0,0,16" 
+                    Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE783;" 
+                               FontFamily="Segoe MDL2 Assets" 
+                               Foreground="#ED4956" 
+                               FontSize="14" 
+                               VerticalAlignment="Center" 
+                               Margin="0,0,8,0"/>
+                    <TextBlock x:Name="ErrorText" 
+                               Text="Error message appears here" 
+                               Foreground="#ED4956" 
+                               FontSize="13" 
+                               TextWrapping="Wrap" 
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Input: Username -->
+            <Border Background="#121212" 
+                    BorderBrush="#363636" 
+                    BorderThickness="1" 
+                    CornerRadius="10" 
+                    Height="54" 
+                    Margin="0,0,0,20" 
+                    Padding="14,6">
+                <Grid>
+                    <TextBlock x:Name="UsernamePlaceholder" 
+                               Text="Enter your username / nickname" 
+                               Foreground="#737373" 
+                               FontSize="14" 
+                               VerticalAlignment="Center" 
+                               IsHitTestVisible="False"/>
+                    <TextBox x:Name="TxtUsername" 
+                             Background="Transparent" 
+                             Foreground="#FFFFFF" 
+                             BorderThickness="0" 
+                             FontSize="14" 
+                             VerticalAlignment="Center" 
+                             CaretBrush="#FFFFFF"
+                             TextChanged="OnUsernameTextChanged"/>
+                </Grid>
+            </Border>
+
+            <!-- Primary Join Chat Button -->
+            <Button x:Name="BtnLogin" 
+                    Content="Join Chat" 
+                    Style="{StaticResource InstagramPrimaryButtonStyle}" 
+                    Margin="0,0,0,0"
+                    Click="OnLoginClick"/>
+
+        </StackPanel>
+
+    </Grid>
+</Window>
