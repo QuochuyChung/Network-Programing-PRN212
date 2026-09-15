@@ -62,7 +62,6 @@ public class ClientHandler
 
     public void Send(Message message)
     {
-        OnSend?.Invoke(message);
         lock (_sendLock)
         {
             try
@@ -72,8 +71,10 @@ public class ClientHandler
             catch (Exception ex)
             {
                 Console.WriteLine($"[SEND ERROR] Failed sending to {Username}: {ex.Message}");
+                return;
             }
         }
+        OnSend?.Invoke(message);
     }
 
     public void Kick(string reason)
