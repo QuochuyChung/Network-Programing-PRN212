@@ -8,8 +8,11 @@ public class ClientHandler
     private readonly NetworkStream _stream;
     private readonly Dictionary<MessageType, Action<Message>> _handlers;
 
-    public static readonly Dictionary<string, ClientHandler> OnlineUsers = new();
+    public static readonly Dictionary<string, ClientHandler> OnlineUsers = new(StringComparer.OrdinalIgnoreCase);
     public static readonly object Lock = new();
+
+    private bool _isDisconnected = false;
+    private readonly object _sendLock = new();
 
     public string Username { get; set; } = "";
 
@@ -54,15 +57,80 @@ public class ClientHandler
         }
     }
 
-    public void Send(Message message) => FrameWriter.WriteMessage(_stream, message);
+    public void Send(Message message)
+    {
+        lock (_sendLock)
+        {
+            try
+            {
+                FrameWriter.WriteMessage(_stream, message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SEND ERROR] Failed sending to {Username}: {ex.Message}");
+            }
+        }
+    }
 
-    private void Disconnect()
+    public void Kick(string reason)
+    {
+        lock (_sendLock)
+        {
+            try
+            {
+                FrameWriter.WriteMessage(_stream, new Message
+                {
+                    Type = MessageType.FORCE_LOGOUT,
+                    Sender = "server",
+                    Content = reason,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[KICK ERROR] Failed to send FORCE_LOGOUT to {Username}: {ex.Message}");
+            }
+        }
+
+        // TCP Graceful Shutdown: đóng chiều Send để gửi cờ FIN tới client.
+        // Client sẽ nhận trọn vẹn gói tin FORCE_LOGOUT rồi tự ngắt kết nối.
+        try
+        {
+            if (_client.Connected)
+            {
+                _client.Client.Shutdown(SocketShutdown.Send);
+            }
+        }
+        catch { }
+
+        // Watchdog dự phòng dọn dẹp nếu client bị treo hoặc mất kết nối mạng đột ngột
+        Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            Disconnect();
+        });
+    }
+
+    public void Disconnect()
     {
         lock (Lock)
         {
-            if (Username != "") OnlineUsers.Remove(Username);
+            if (_isDisconnected) return;
+            _isDisconnected = true;
+
+            if (!string.IsNullOrEmpty(Username) && OnlineUsers.TryGetValue(Username, out var current) && current == this)
+            {
+                OnlineUsers.Remove(Username);
+            }
         }
-        _client.Close();
+
+        try
+        {
+            _stream.Close();
+            _client.Close();
+        }
+        catch { }
+
         Console.WriteLine($"{Username} da ngat ket noi.");
     }
 }
