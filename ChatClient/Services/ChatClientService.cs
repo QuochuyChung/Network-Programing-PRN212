@@ -17,6 +17,22 @@ public class ChatClientService
     public event Action<string>? OnLoginSucceeded;
     public event Action<string>? OnLoginFailed;
     public event Action? OnDisconnected;
+    public event Action<string>? OnForceLogout;
+    public event Action<Message>? OnMessageReceived;
+
+    private readonly object _sendLock = new();
+    private CancellationTokenSource? _listenCts;
+
+    public void Send(Message message)
+    {
+        lock (_sendLock)
+        {
+            if (_stream != null)
+            {
+                FrameWriter.WriteMessage(_stream, message);
+            }
+        }
+    }
 
     public async Task<(bool Success, string Message)> ConnectAndLoginAsync(
         string host,
@@ -40,7 +56,7 @@ public class ChatClientService
                 return (false, "Cannot open network stream to the server.");
             }
 
-            // Gửi gói tin LOGIN theo chuẩn ChatProtocol của nhóm
+            // Gửi gói tin LOGIN theo chuẩn ChatProtocol của nhóm (đồng bộ luồng bằng lock)
             var loginMsg = new Message
             {
                 Type = MessageType.LOGIN,
@@ -49,10 +65,13 @@ public class ChatClientService
                 Timestamp = DateTime.UtcNow
             };
 
-            FrameWriter.WriteMessage(_stream, loginMsg);
+            lock (_sendLock)
+            {
+                FrameWriter.WriteMessage(_stream, loginMsg);
+            }
 
-            // Đọc phản hồi từ server
-            var response = await Task.Run(() => FrameReader.ReadMessage(_stream), cancellationToken);
+            // Đọc phản hồi từ server bất đồng bộ (giải phóng thread)
+            var response = await FrameReader.ReadMessageAsync(_stream, cancellationToken);
             if (response == null)
             {
                 Disconnect();
@@ -89,6 +108,53 @@ public class ChatClientService
         }
     }
 
+    internal void StartMessageLoop()
+    {
+        _listenCts?.Cancel();
+        _listenCts?.Dispose();
+        _listenCts = new CancellationTokenSource();
+        var token = _listenCts.Token;
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                while (!token.IsCancellationRequested && _stream != null)
+                {
+                    var msg = await FrameReader.ReadMessageAsync(_stream, token);
+                    if (msg == null) break;
+
+                    if (msg.Type == MessageType.FORCE_LOGOUT)
+                    {
+                        string reason = string.IsNullOrWhiteSpace(msg.Content)
+                            ? "Your account has been logged in from another device."
+                            : msg.Content;
+
+                        Disconnect();
+                        OnForceLogout?.Invoke(reason);
+                        return;
+                    }
+                    else
+                    {
+                        OnMessageReceived?.Invoke(msg);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected cancellation on logout
+            }
+            catch (Exception)
+            {
+                // Stream closed or connection terminated
+            }
+            finally
+            {
+                Disconnect();
+            }
+        }, token);
+    }
+
     public async Task<bool> SendMessageAsync(Guid groupId, string content)
     {
         if (_stream == null || CurrentUser == null)
@@ -122,6 +188,10 @@ public class ChatClientService
     {
         try
         {
+            _listenCts?.Cancel();
+            _listenCts?.Dispose();
+            _listenCts = null;
+
             _stream?.Close();
             _tcpClient?.Close();
         }

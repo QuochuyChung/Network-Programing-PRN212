@@ -8,11 +8,20 @@ public partial class LoginWindow : Window
 {
     private readonly ClientConfigService _config;
 
-    public LoginWindow()
+    public LoginWindow() : this(null)
+    {
+    }
+
+    public LoginWindow(string? initialError)
     {
         InitializeComponent();
         _config = ClientConfigService.Load();
         TxtUsername.Focus();
+
+        if (!string.IsNullOrWhiteSpace(initialError))
+        {
+            ShowError(initialError);
+        }
     }
 
     private void OnUsernameTextChanged(object sender, TextChangedEventArgs e)
@@ -39,8 +48,8 @@ public partial class LoginWindow : Window
         HideError();
 
         var (success, message) = await ChatClientService.Instance.ConnectAndLoginAsync(
-            _config.Host, 
-            _config.Port, 
+            _config.Host,
+            _config.Port,
             username);
 
         SetLoading(false);
@@ -50,6 +59,7 @@ public partial class LoginWindow : Window
             var nextWindow = new MainWindow();
             nextWindow.Title = $"ChatApp • Logged in as: @{ChatClientService.Instance.CurrentUser}";
             nextWindow.Show();
+            ChatClientService.Instance.StartMessageLoop();
             this.Close();
         }
         else
