@@ -59,6 +59,7 @@ public partial class LoginWindow : Window
             var nextWindow = new MainWindow();
             nextWindow.Title = $"ChatApp • Logged in as: @{ChatClientService.Instance.CurrentUser}";
             nextWindow.Show();
+            ChatClientService.Instance.StartMessageLoop();
             this.Close();
         }
         else

@@ -81,7 +81,6 @@ public class ChatClientService
             if (response.Type == MessageType.LOGIN_OK)
             {
                 CurrentUser = response.Sender.Length > 0 ? response.Sender : username.Trim();
-                StartMessageLoop();
                 OnLoginSucceeded?.Invoke(CurrentUser);
                 return (true, response.Content.Length > 0 ? response.Content : "Login successful!");
             }
@@ -109,7 +108,7 @@ public class ChatClientService
         }
     }
 
-    private void StartMessageLoop()
+    internal void StartMessageLoop()
     {
         _listenCts?.Cancel();
         _listenCts?.Dispose();
