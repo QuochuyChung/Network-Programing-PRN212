@@ -19,6 +19,14 @@ public partial class MainWindow : Window
 
         ChatClientService.Instance.OnForceLogout += HandleForceLogout;
         ChatClientService.Instance.OnMessageReceived += HandleMessage;
+
+        var username = ChatClientService.Instance.CurrentUser;
+        if (username != null)
+        {
+            Title = $"Chat ({username})";
+            MyUsernameText.Text = username;
+            MyAvatarText.Text = username[0].ToString().ToUpper();
+        }
     }
 
     private void HandleForceLogout(string reason)
@@ -38,12 +46,6 @@ public partial class MainWindow : Window
         {
             switch (message.Type)
             {
-                case MessageType.LOGIN_OK:
-                    Title = $"Chat ({message.Sender})";
-                    MyUsernameText.Text = message.Sender;
-                    MyAvatarText.Text = message.Sender[0].ToString().ToUpper();
-                    break;
-
                 case MessageType.ONLINE_LIST:
                     _onlineUsers.Clear();
                     if (message.Users != null)
