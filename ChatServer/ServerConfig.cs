@@ -35,4 +35,31 @@ public static class ServerConfig
 
         return DefaultPort;
     }
+
+    public static int GetFilePort()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            if (File.Exists(path))
+            {
+                var json = File.ReadAllText(path);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("Server", out var serverElem) &&
+                    serverElem.TryGetProperty("FilePort", out var portElem) &&
+                    portElem.TryGetInt32(out int port))
+                {
+                    if (port > 0 && port <= 65535)
+                    {
+                        return port;
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return GetPort() + 1;
+    }
 }

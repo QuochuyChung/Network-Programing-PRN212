@@ -1,5 +1,7 @@
 using System.Net.Sockets;
+using System.Text.Json;
 using ChatProtocol;
+using ChatProtocol.Dtos;
 
 namespace ChatClient.Services;
 
@@ -14,11 +16,24 @@ public class ChatClientService
     public bool IsConnected => _tcpClient?.Connected == true;
     public string? CurrentUser { get; private set; }
 
+    // Authentication and Session Events
     public event Action<string>? OnLoginSucceeded;
     public event Action<string>? OnLoginFailed;
     public event Action? OnDisconnected;
     public event Action<string>? OnForceLogout;
+
+    // Data & Real-time Events
     public event Action<Message>? OnMessageReceived;
+    public event Action<List<GroupDto>>? OnGroupListReceived;
+    public event Action<GroupDto>? OnGroupCreated;
+    public event Action<Guid, List<GroupMemberDto>>? OnMemberListReceived;
+    public event Action<Guid, List<MessageHistoryItemDto>>? OnMessageHistoryReceived;
+    public event Action<Message>? OnChatMessageReceived;
+    public event Action<List<string>>? OnOnlineListReceived;
+    public event Action<string>? OnUserOnline;
+    public event Action<string>? OnUserOffline;
+    public event Action<List<string>>? OnUserListReceived;
+    public event Action<string>? OnErrorMessageReceived;
 
     private readonly object _sendLock = new();
     private CancellationTokenSource? _listenCts;
@@ -29,7 +44,15 @@ public class ChatClientService
         {
             if (_stream != null)
             {
-                FrameWriter.WriteMessage(_stream, message);
+                try
+                {
+                    FrameWriter.WriteMessage(_stream, message);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SEND ERROR] {ex.Message}");
+                    Disconnect();
+                }
             }
         }
     }
@@ -56,7 +79,6 @@ public class ChatClientService
                 return (false, "Cannot open network stream to the server.");
             }
 
-            // Gửi gói tin LOGIN theo chuẩn ChatProtocol của nhóm (đồng bộ luồng bằng lock)
             var loginMsg = new Message
             {
                 Type = MessageType.LOGIN,
@@ -70,7 +92,6 @@ public class ChatClientService
                 FrameWriter.WriteMessage(_stream, loginMsg);
             }
 
-            // Đọc phản hồi từ server bất đồng bộ (giải phóng thread)
             var response = await FrameReader.ReadMessageAsync(_stream, cancellationToken);
             if (response == null)
             {
@@ -108,7 +129,7 @@ public class ChatClientService
         }
     }
 
-    internal void StartMessageLoop()
+    public void StartMessageLoop()
     {
         _listenCts?.Cancel();
         _listenCts?.Dispose();
@@ -134,19 +155,21 @@ public class ChatClientService
                         OnForceLogout?.Invoke(reason);
                         return;
                     }
-                    else
-                    {
-                        OnMessageReceived?.Invoke(msg);
-                    }
+
+                    // Raw dispatch
+                    OnMessageReceived?.Invoke(msg);
+
+                    // Strongly typed dispatch
+                    DispatchTypedMessage(msg);
                 }
             }
             catch (OperationCanceledException)
             {
-                // Expected cancellation on logout
+                // Expected on clean disconnect
             }
             catch (Exception)
             {
-                // Stream closed or connection terminated
+                // Stream closed or error
             }
             finally
             {
@@ -155,11 +178,92 @@ public class ChatClientService
         }, token);
     }
 
+    private void DispatchTypedMessage(Message msg)
+    {
+        try
+        {
+            switch (msg.Type)
+            {
+                case MessageType.GROUP_LIST:
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        var groups = JsonSerializer.Deserialize<List<GroupDto>>(msg.Content);
+                        if (groups != null) OnGroupListReceived?.Invoke(groups);
+                    }
+                    break;
+
+                case MessageType.CREATE_GROUP:
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        var createdGroup = JsonSerializer.Deserialize<GroupDto>(msg.Content);
+                        if (createdGroup != null) OnGroupCreated?.Invoke(createdGroup);
+                    }
+                    break;
+
+                case MessageType.MEMBER_LIST:
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        var members = JsonSerializer.Deserialize<List<GroupMemberDto>>(msg.Content);
+                        if (members != null) OnMemberListReceived?.Invoke(msg.GroupId, members);
+                    }
+                    break;
+
+                case MessageType.MESSAGE_HISTORY:
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        var history = JsonSerializer.Deserialize<List<MessageHistoryItemDto>>(msg.Content);
+                        if (history != null) OnMessageHistoryReceived?.Invoke(msg.GroupId, history);
+                    }
+                    break;
+
+                case MessageType.MESSAGE:
+                    OnChatMessageReceived?.Invoke(msg);
+                    break;
+
+                case MessageType.ONLINE_LIST:
+                    if (msg.Users != null)
+                    {
+                        OnOnlineListReceived?.Invoke(msg.Users);
+                    }
+                    break;
+
+                case MessageType.USER_ONLINE:
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        OnUserOnline?.Invoke(msg.Content);
+                    }
+                    break;
+
+                case MessageType.USER_OFFLINE:
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        OnUserOffline?.Invoke(msg.Content);
+                    }
+                    break;
+
+                case MessageType.USER_LIST:
+                    if (msg.Users != null)
+                    {
+                        OnUserListReceived?.Invoke(msg.Users);
+                    }
+                    break;
+
+                case MessageType.ERROR:
+                    OnErrorMessageReceived?.Invoke(msg.Content);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DISPATCH ERROR] {ex.Message}");
+        }
+    }
+
     public async Task<bool> SendMessageAsync(Guid groupId, string content)
     {
         if (_stream == null || CurrentUser == null)
         {
-            return false; // chua connect/chua login thi khong gui duoc
+            return false;
         }
 
         var chatMessage = new Message
@@ -173,7 +277,7 @@ public class ChatClientService
 
         try
         {
-            await Task.Run(() => FrameWriter.WriteMessage(_stream, chatMessage));
+            await Task.Run(() => Send(chatMessage));
             return true;
         }
         catch (Exception ex)
@@ -182,6 +286,61 @@ public class ChatClientService
             Disconnect();
             return false;
         }
+    }
+
+    public void RequestGroupList()
+    {
+        Send(new Message
+        {
+            Type = MessageType.GROUP_LIST,
+            Sender = CurrentUser ?? "",
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public void CreateGroup(string groupName, List<string>? memberUsernames = null)
+    {
+        Send(new Message
+        {
+            Type = MessageType.CREATE_GROUP,
+            Sender = CurrentUser ?? "",
+            Content = groupName.Trim(),
+            Users = memberUsernames,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public void AddMember(Guid groupId, string username)
+    {
+        Send(new Message
+        {
+            Type = MessageType.ADD_MEMBER,
+            GroupId = groupId,
+            Sender = CurrentUser ?? "",
+            Content = username.Trim(),
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public void OpenGroup(Guid groupId)
+    {
+        Send(new Message
+        {
+            Type = MessageType.OPEN_GROUP,
+            GroupId = groupId,
+            Sender = CurrentUser ?? "",
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public void RequestUserList()
+    {
+        Send(new Message
+        {
+            Type = MessageType.USER_LIST,
+            Sender = CurrentUser ?? "",
+            Timestamp = DateTime.UtcNow
+        });
     }
 
     public void Disconnect()
@@ -197,7 +356,6 @@ public class ChatClientService
         }
         catch
         {
-            // Ignore socket cleanup exceptions
         }
         finally
         {

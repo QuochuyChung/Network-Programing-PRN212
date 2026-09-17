@@ -10,6 +10,7 @@ public class ClientConfigService
 
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 5000;
+    public int FilePort { get; set; } = 5001;
 
     public static ClientConfigService Load()
     {
@@ -33,6 +34,17 @@ public class ClientConfigService
                         port > 0 && port <= 65535)
                     {
                         config.Port = port;
+                    }
+
+                    if (serverElem.TryGetProperty("FilePort", out var filePortElem) &&
+                        filePortElem.TryGetInt32(out int filePort) &&
+                        filePort > 0 && filePort <= 65535)
+                    {
+                        config.FilePort = filePort;
+                    }
+                    else
+                    {
+                        config.FilePort = config.Port + 1;
                     }
                 }
             }

@@ -28,11 +28,17 @@ public class ClientHandler
         var chatService = new ChatService(this);
         var onlineService = new OnlineService(this);
         var offlineService = new OfflineService(this);
+        var groupService = new GroupService(this);
 
         _handlers = new Dictionary<MessageType, Action<Message>>
         {
             { MessageType.LOGIN, authService.HandleLogin },
-            { MessageType.MESSAGE, chatService.HandleChatMessage }
+            { MessageType.MESSAGE, chatService.HandleChatMessage },
+            { MessageType.GROUP_LIST, groupService.HandleGroupList },
+            { MessageType.CREATE_GROUP, groupService.HandleCreateGroup },
+            { MessageType.ADD_MEMBER, groupService.HandleAddMember },
+            { MessageType.OPEN_GROUP, groupService.HandleOpenGroup },
+            { MessageType.USER_LIST, groupService.HandleUserList }
         };
     }
 
