@@ -1,0 +1,266 @@
+<Window x:Class="ChatClient.Views.GroupListWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ChatApp" Height="720" Width="1120" MinHeight="620" MinWidth="920"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F0F10" Foreground="#F5F5F5" FontFamily="Segoe UI"
+        Closing="OnWindowClosing">
+    <Window.Resources>
+        <!-- Nút chính dùng chung cho chức năng tạo group và thêm thành viên. -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#0095F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1877F2"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InputTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#1B1B1D"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="CaretBrush" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#363638"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="11,7"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style x:Key="GroupItemStyle" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder" Background="#19191B" CornerRadius="10" Padding="11,9">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#242427"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#153A55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="360"/>
+            <ColumnDefinition Width="1"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- CỘT TRÁI: tạo group ở trên, thành viên ở giữa, group đã tham gia ở dưới. -->
+        <Grid Grid.Column="0" Margin="18,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*" MinHeight="155"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="190"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Group chat" FontSize="23" FontWeight="Bold"/>
+                    <TextBlock x:Name="CurrentUserText" Foreground="#A8A8A8" Margin="0,2,0,0"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="&#xE72C;" FontFamily="Segoe MDL2 Assets"
+                        Width="36" Height="36" ToolTip="Refresh group list"
+                        Background="#242427" Foreground="#F5F5F5" BorderThickness="0"
+                        Cursor="Hand" Click="OnRefreshGroupsClick"/>
+            </Grid>
+
+            <!-- Form tạo group mới luôn nằm ở đầu sidebar. -->
+            <Border Grid.Row="1" Background="#151517" BorderBrush="#2B2B2E" BorderThickness="1"
+                    CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Create a group" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="96"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="GroupNameTextBox" Style="{StaticResource InputTextBox}"
+                                 MaxLength="100" ToolTip="Enter a group name" Margin="0,0,8,0"/>
+                        <Button x:Name="CreateGroupButton" Grid.Column="1" Content="Create"
+                                Style="{StaticResource PrimaryButton}" Click="OnCreateGroupClick"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Khu vực giữa: danh sách thành viên của group đang được chọn. -->
+            <Border Grid.Row="2" Background="#151517" BorderBrush="#2B2B2E" BorderThickness="1"
+                    CornerRadius="12" Padding="12" Margin="0,0,0,10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Members" FontWeight="SemiBold" FontSize="15"/>
+                        <TextBlock x:Name="MemberCountText" Grid.Column="1" Text="0"
+                                   Foreground="#8E8E93" FontSize="12" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <Grid Grid.Row="1">
+                        <ListBox x:Name="MemberListBox" Background="Transparent" BorderThickness="0"
+                                 IsHitTestVisible="False">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="2,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="28" Height="28" CornerRadius="14" Background="#2A2A2E">
+                                            <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="{Binding Username}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" Margin="4,0,6,0"/>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Ellipse x:Name="OnlineDot" Width="7" Height="7" Fill="#6B7280" Margin="0,0,5,0"/>
+                                            <TextBlock Text="{Binding StatusText}" Foreground="#8E8E93" FontSize="11"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                            <Setter TargetName="OnlineDot" Property="Fill" Value="#22C55E"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock x:Name="EmptyMembersText" Text="Select a group to view members"
+                                   Foreground="#77777D" TextAlignment="Center" TextWrapping="Wrap"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Thêm thành viên vào group đang chọn. -->
+            <Border Grid.Row="3" Background="#151517" BorderBrush="#2B2B2E" BorderThickness="1"
+                    CornerRadius="12" Padding="12" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock x:Name="SelectedGroupHint" Text="Select a group before adding a member"
+                               Foreground="#A8A8A8" FontSize="12" Margin="0,0,0,7"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="88"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="MemberUsernameTextBox" Style="{StaticResource InputTextBox}"
+                                 MaxLength="50" ToolTip="Enter an existing username"
+                                 Margin="0,0,8,0" IsEnabled="False"/>
+                        <Button x:Name="AddMemberButton" Grid.Column="1" Content="Add"
+                                Style="{StaticResource PrimaryButton}" Click="OnAddMemberClick" IsEnabled="False"/>
+                    </Grid>
+                    <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,0"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Phía dưới sidebar: chỉ hiển thị các group user hiện tại đang tham gia. -->
+            <Grid Grid.Row="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="Your groups" FontWeight="SemiBold" Foreground="#D8D8D8"
+                           Margin="2,0,0,8"/>
+                <Grid Grid.Row="1">
+                    <ListBox x:Name="GroupListBox" Background="Transparent" BorderThickness="0"
+                             ItemContainerStyle="{StaticResource GroupItemStyle}"
+                             SelectionChanged="OnGroupSelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="40"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="34" Height="34" CornerRadius="17" Background="#0095F6">
+                                        <TextBlock Text="#" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontWeight="Bold" FontSize="16"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding MemberSummary}" Foreground="#9B9B9F" FontSize="11"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock x:Name="EmptyGroupsText" Text="You have no groups yet"
+                               Foreground="#77777D" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Column="1" Background="#2A2A2D"/>
+
+        <!-- CỘT PHẢI: vùng chat của group đang chọn, không thêm ô nhập tin nhắn. -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="76"/>
+                <RowDefinition Height="1"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" Margin="22,0">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="ChatGroupTitle" Text="Select a group" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="ChatGroupSubtitle" Text="Choose a group from the lower-left list"
+                               Foreground="#8E8E93" FontSize="12"/>
+                </StackPanel>
+            </Grid>
+            <Border Grid.Row="1" Background="#2A2A2D"/>
+            <StackPanel Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Width="72" Height="72" CornerRadius="36" BorderBrush="#36363A" BorderThickness="1"
+                        Background="#18181A" Margin="0,0,0,16">
+                    <TextBlock Text="&#xE8BD;" FontFamily="Segoe MDL2 Assets" FontSize="30"
+                               Foreground="#64646A" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock x:Name="ChatPlaceholderTitle" Text="Select a group to start"
+                           FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <TextBlock Text="The message area will be implemented separately."
+                           Foreground="#77777D" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Sockets;
 using ChatProtocol;
 
@@ -10,12 +11,16 @@ public class ChatClientService
 
     private TcpClient? _tcpClient;
     private NetworkStream? _stream;
+    private CancellationTokenSource? _receiveCancellation;
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private bool _disconnectRaised;
 
     public bool IsConnected => _tcpClient?.Connected == true;
     public string? CurrentUser { get; private set; }
 
     public event Action<string>? OnLoginSucceeded;
     public event Action<string>? OnLoginFailed;
+    public event Action<Message>? OnMessageReceived;
     public event Action? OnDisconnected;
 
     public async Task<(bool Success, string Message)> ConnectAndLoginAsync(
@@ -31,6 +36,7 @@ public class ChatClientService
             {
                 _tcpClient?.Dispose();
                 _tcpClient = new TcpClient();
+                _disconnectRaised = false;
                 await _tcpClient.ConnectAsync(host, port, cancellationToken);
                 _stream = _tcpClient.GetStream();
             }
@@ -63,6 +69,7 @@ public class ChatClientService
             {
                 CurrentUser = response.Sender.Length > 0 ? response.Sender : username.Trim();
                 OnLoginSucceeded?.Invoke(CurrentUser);
+                StartReceiveLoop();
                 return (true, response.Content.Length > 0 ? response.Content : "Login successful!");
             }
             else if (response.Type == MessageType.ERROR)
@@ -105,9 +112,63 @@ public class ChatClientService
             Timestamp = DateTime.UtcNow
         };
 
+        return await SendAsync(chatMessage);
+    }
+
+    public Task<bool> RequestGroupListAsync()
+    {
+        return SendAsync(new Message
+        {
+            Type = MessageType.GROUP_LIST,
+            Sender = CurrentUser ?? string.Empty,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public Task<bool> CreateGroupAsync(string groupName)
+    {
+        return SendAsync(new Message
+        {
+            Type = MessageType.CREATE_GROUP,
+            Sender = CurrentUser ?? string.Empty,
+            Content = groupName.Trim(),
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public Task<bool> AddMemberAsync(Guid groupId, string username)
+    {
+        return SendAsync(new Message
+        {
+            Type = MessageType.ADD_MEMBER,
+            GroupId = groupId,
+            Sender = CurrentUser ?? string.Empty,
+            Content = username.Trim(),
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    public Task<bool> OpenGroupAsync(Guid groupId)
+    {
+        return SendAsync(new Message
+        {
+            Type = MessageType.OPEN_GROUP,
+            GroupId = groupId,
+            Sender = CurrentUser ?? string.Empty,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    private async Task<bool> SendAsync(Message message)
+    {
+        NetworkStream? stream = _stream;
+        if (stream == null || CurrentUser == null) return false;
+
+        await _sendLock.WaitAsync();
         try
         {
-            await Task.Run(() => FrameWriter.WriteMessage(_stream, chatMessage));
+            // Mọi request dùng chung một TCP stream nên phải ghi tuần tự.
+            await Task.Run(() => FrameWriter.WriteMessage(stream, message));
             return true;
         }
         catch (Exception ex)
@@ -116,10 +177,53 @@ public class ChatClientService
             Disconnect();
             return false;
         }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    private void StartReceiveLoop()
+    {
+        _receiveCancellation?.Cancel();
+        _receiveCancellation?.Dispose();
+        _receiveCancellation = new CancellationTokenSource();
+        CancellationToken token = _receiveCancellation.Token;
+
+        // Một reader nền duy nhất nhận mọi phản hồi sau LOGIN_OK rồi phát event cho UI.
+        _ = Task.Run(() => ReceiveLoop(token), token);
+    }
+
+    private void ReceiveLoop(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested && _stream != null)
+            {
+                Message? message = FrameReader.ReadMessage(_stream);
+                if (message == null) break;
+                OnMessageReceived?.Invoke(message);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException)
+        {
+            // Đóng app hoặc mất mạng đều kết thúc reader tại đây.
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                Disconnect();
+            }
+        }
     }
 
     public void Disconnect()
     {
+        bool shouldNotify = !_disconnectRaised;
+        _disconnectRaised = true;
+        _receiveCancellation?.Cancel();
+
         try
         {
             _stream?.Close();
@@ -134,7 +238,7 @@ public class ChatClientService
             _stream = null;
             _tcpClient = null;
             CurrentUser = null;
-            OnDisconnected?.Invoke();
+            if (shouldNotify) OnDisconnected?.Invoke();
         }
     }
 

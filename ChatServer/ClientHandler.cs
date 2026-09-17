@@ -7,6 +7,7 @@ public class ClientHandler
     private readonly TcpClient _client;
     private readonly NetworkStream _stream;
     private readonly Dictionary<MessageType, Action<Message>> _handlers;
+    private readonly object _sendLock = new();
 
     public static readonly Dictionary<string, ClientHandler> OnlineUsers = new();
     public static readonly object Lock = new();
@@ -24,6 +25,10 @@ public class ClientHandler
         _handlers = new Dictionary<MessageType, Action<Message>>
         {
             { MessageType.LOGIN, authService.HandleLogin },
+            { MessageType.GROUP_LIST, chatService.HandleGroupList },
+            { MessageType.CREATE_GROUP, chatService.HandleCreateGroup },
+            { MessageType.ADD_MEMBER, chatService.HandleAddMember },
+            { MessageType.OPEN_GROUP, chatService.HandleOpenGroup },
             { MessageType.MESSAGE, chatService.HandleChatMessage }
         };
     }
@@ -54,7 +59,15 @@ public class ClientHandler
         }
     }
 
-    public void Send(Message message) => FrameWriter.WriteMessage(_stream, message);
+    public void Send(Message message)
+    {
+        // Nhiều client thread có thể cùng gửi về một user; khóa theo connection
+        // để length-prefix và JSON payload không bị ghi xen kẽ trên TCP stream.
+        lock (_sendLock)
+        {
+            FrameWriter.WriteMessage(_stream, message);
+        }
+    }
 
     private void Disconnect()
     {

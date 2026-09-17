@@ -47,7 +47,8 @@ public partial class LoginWindow : Window
 
         if (success)
         {
-            var nextWindow = new MainWindow();
+            // Sau khi đăng nhập, mở màn hình quản lý group trong thư mục Views.
+            var nextWindow = new GroupListWindow();
             nextWindow.Title = $"ChatApp • Logged in as: @{ChatClientService.Instance.CurrentUser}";
             nextWindow.Show();
             this.Close();
