@@ -53,6 +53,9 @@ public class ChatService
             handler.Send(message);
         }
 
-        Console.WriteLine($"[{message.GroupId}] {message.Sender}: {message.Content}");
+        string preview = message.Content?.Length > 100
+            ? message.Content.Substring(0, 100) + $"... ({message.Content.Length} chars)"
+            : (message.Content ?? "");
+        Console.WriteLine($"[{message.GroupId}] {message.Sender}: {preview}");
     }
 }

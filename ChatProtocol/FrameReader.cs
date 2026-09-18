@@ -46,4 +46,36 @@ public static class FrameReader
 
         return buffer;
     }
+
+    /// <summary>
+    /// Đọc message bất đồng bộ (Non-blocking I/O) giúp giải phóng thread chạy ngầm
+    /// </summary>
+    public static async Task<Message?> ReadMessageAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        byte[]? lengthBuffer = await ReadExactAsync(stream, 4, cancellationToken);
+        if (lengthBuffer == null) return null;
+
+        int length = BitConverter.ToInt32(lengthBuffer, 0);
+
+        byte[]? payload = await ReadExactAsync(stream, length, cancellationToken);
+        if (payload == null) return null;
+
+        string json = Encoding.UTF8.GetString(payload);
+        return JsonSerializer.Deserialize<Message>(json);
+    }
+
+    private static async Task<byte[]?> ReadExactAsync(Stream stream, int count, CancellationToken cancellationToken = default)
+    {
+        byte[] buffer = new byte[count];
+        int offset = 0;
+
+        while (offset < count)
+        {
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(offset, count - offset), cancellationToken);
+            if (bytesRead == 0) return null;
+            offset += bytesRead;
+        }
+
+        return buffer;
+    }
 }

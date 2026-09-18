@@ -19,3 +19,7 @@ Thumbs.db
 
 # Chua connection string that (password DB) - khong commit
 appsettings.json
+
+# Output cua "dotnet publish" (exe self-contained ~150MB) - khong commit,
+# GitHub tu choi file >100MB. Can thi tu publish lai bang lenh trong README.
+publish/

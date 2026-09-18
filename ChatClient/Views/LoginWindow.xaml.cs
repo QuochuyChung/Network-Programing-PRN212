@@ -1,81 +1,44 @@
 using System.Windows;
-using System.Windows.Controls;
 using ChatClient.Services;
+using ChatClient.ViewModels;
 
 namespace ChatClient.Views;
 
 public partial class LoginWindow : Window
 {
-    private readonly ClientConfigService _config;
+    public LoginViewModel ViewModel { get; }
 
-    public LoginWindow()
+    public LoginWindow() : this(null)
+    {
+    }
+
+    public LoginWindow(string? initialError)
     {
         InitializeComponent();
-        _config = ClientConfigService.Load();
+        ViewModel = new LoginViewModel(initialError);
+        DataContext = ViewModel;
+
+        ViewModel.LoginSuccess += OnLoginSuccess;
         TxtUsername.Focus();
     }
 
-    private void OnUsernameTextChanged(object sender, TextChangedEventArgs e)
+    private void OnLoginSuccess(string username)
     {
-        UsernamePlaceholder.Visibility = string.IsNullOrEmpty(TxtUsername.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        HideError();
-    }
-
-    private async void OnLoginClick(object sender, RoutedEventArgs e)
-    {
-        string username = TxtUsername.Text.Trim();
-
-        if (string.IsNullOrEmpty(username))
+        Dispatcher.Invoke(() =>
         {
-            ShowError("Please enter your username / nickname to join.");
-            TxtUsername.Focus();
-            return;
-        }
-
-        // Start connection and login
-        SetLoading(true);
-        HideError();
-
-        var (success, message) = await ChatClientService.Instance.ConnectAndLoginAsync(
-            _config.Host, 
-            _config.Port, 
-            username);
-
-        SetLoading(false);
-
-        if (success)
-        {
-            var nextWindow = new MainWindow();
-            nextWindow.Title = $"ChatApp • Logged in as: @{ChatClientService.Instance.CurrentUser}";
-            nextWindow.Show();
-            this.Close();
-        }
-        else
-        {
-            ShowError(message);
-        }
-    }
-
-    private void ShowError(string message)
-    {
-        ErrorText.Text = message;
-        ErrorBadge.Visibility = Visibility.Visible;
-    }
-
-    private void HideError()
-    {
-        if (ErrorBadge.Visibility != Visibility.Collapsed)
-        {
-            ErrorBadge.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void SetLoading(bool isLoading)
-    {
-        BtnLogin.IsEnabled = !isLoading;
-        BtnLogin.Content = isLoading ? "Connecting..." : "Join Chat";
-        TxtUsername.IsEnabled = !isLoading;
+            try
+            {
+                ChatClientService.Instance.StartMessageLoop();
+                var nextWindow = new MainWindow();
+                nextWindow.Title = $"ChatApp • Logged in as: @{username}";
+                Application.Current.MainWindow = nextWindow;
+                nextWindow.Show();
+                Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to launch Chat Window: {ex.Message}\n\n{ex.StackTrace}", "Launch Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        });
     }
 }
