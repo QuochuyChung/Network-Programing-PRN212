@@ -376,7 +376,13 @@ public class MainViewModel : ViewModelBase
 
             placeholder.PreviewRequested += (att, thumb) => RequestOpenImageViewer?.Invoke(att, thumb);
 
-            CurrentMessages.Add(placeholder);
+            // Chup lai dung collection cua group nay ngay luc tao placeholder.
+            // KHONG duoc dung lai property "CurrentMessages" o buoc remove ben duoi,
+            // vi CurrentMessages co the doi sang nhom khac trong luc file dang upload
+            // (file lon >=500MB co the mat vai phut) -> remove nham cho, gay ket dinh
+            // placeholder + nhan doi tin nhan that khi quay lai dung nhom.
+            var targetCollection = CurrentMessages;
+            targetCollection.Add(placeholder);
             ScrollToBottomRequested?.Invoke();
 
             Task.Run(async () =>
@@ -401,7 +407,7 @@ public class MainViewModel : ViewModelBase
 
                     await _dispatcher.InvokeAsync(() =>
                     {
-                        CurrentMessages.Remove(placeholder);
+                        targetCollection.Remove(placeholder);
                     });
                 }
                 catch (OperationCanceledException)

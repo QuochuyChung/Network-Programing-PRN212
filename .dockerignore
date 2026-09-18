@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+ChatClient/
+publish/
+.git/
+.vs/
+.vscode/
+*.md
